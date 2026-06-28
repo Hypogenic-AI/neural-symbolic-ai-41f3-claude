@@ -1,0 +1,76 @@
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Problem setup}
+\mnistadd presents pairs of digit images $(\vx_1,\vx_2)$ with only the integer sum
+$s = y_1 + y_2$ supervised; the true digit labels $(y_1,y_2)$ are hidden during training. The learning
+challenge is that the digit-recognition map must be discovered purely as a by-product of fitting the
+sum---this is what makes the benchmark a clean test of perception-via-symbolic-constraint, and what
+makes correct \emph{grounding} a non-trivial outcome.
+
+\subsection{Models}
+All three models share an identical LeNet-style CNN encoder; the \emph{only} difference is the output
+head and the learning signal, which isolates the symbolic structure as the variable.
+
+\para{Neural-only baseline.} The shared encoder is applied to each image; the two feature vectors are
+concatenated and passed to an MLP that produces a $19$-way softmax over possible sums $\{0,\dots,18\}$
+(a $10$-way head for the modular task). It has no knowledge that the output decomposes as $d_1{+}d_2$.
+
+\para{Neuro-symbolic (\nesy).} The shared encoder maps each image to a $10$-way digit
+log-probability vector. Treating the two digits as independent given the images, the distribution over
+the sum is computed \emph{exactly and differentiably} as the convolution of the two digit pmfs,
+\begin{equation}
+\label{eq:marginalization}
+P(\text{sum}=s) \;=\; \sum_{a+b=s} P(d_1{=}a)\,P(d_2{=}b),
+\end{equation}
+which is the DeepProbLog/Scallop marginalization in compact form. Training minimizes the negative
+log-likelihood of the \emph{true sum only} (distant supervision). The symbolic operator is fixed and
+never learned. For the modular task, the constraint in \eqref{eq:marginalization} becomes
+$a{+}b\equiv s \pmod{10}$.
+
+\para{Oracle (upper bound).} The same $10$-way CNN is trained with ordinary cross-entropy on the true
+digit labels and adds via argmax. It bounds the achievable grounding and sum accuracy and, crucially,
+serves as a control: because it sees digit labels, it should ground correctly \emph{regardless} of the
+symbolic operator.
+
+\subsection{Symbolic operators: a controlled shortcut switch}
+We study two operators that differ only in their algebra.
+\emph{Standard addition} ($a{+}b$, output $0$--$18$) has boundary constraints---a sum of $0$ forces
+$0{+}0$ and a sum of $18$ forces $9{+}9$---that uniquely pin the symbols, making the grounding
+identifiable. \emph{Modular addition} \modten (output $0$--$9$) deliberately removes those boundary
+constraints and introduces a rotational symmetry: any cyclic relabeling $d\mapsto(d{+}k)\bmod 10$
+applied to both images leaves the modular sum invariant. The operator therefore \emph{admits} an exact
+affine shortcut and is expected to \emph{induce} one under distant supervision. The oracle is unaffected
+because it never relies on the sum to identify digits. This single-operator flip is the backbone of our
+study: it switches shortcuts on and off while holding architecture, data, and optimization fixed.
+
+\subsection{Data}
+We use the locally pre-built \mnistadd dataset ($30{,}000$ train pairs, $5{,}000$ test pairs) indexing
+into MNIST. True digit labels are used \emph{only} for evaluation (grounding) and for the oracle and
+mitigation conditions. We verified data integrity (stored sums equal the sums of the true digits; test
+indices map exactly to the MNIST test images). For the compositional experiment we deterministically
+synthesize $2$- and $3$-digit number-addition test sets ($5{,}000$ examples each) from MNIST test
+images.
+
+\subsection{Metrics}
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item \para{Test sum accuracy} --- the primary task metric.
+    \item \para{Digit-grounding accuracy} --- \emph{raw} (argmax digit vs.\ true label) and
+    \emph{Hungarian-aligned} (accuracy under the best $10{\times}10$ label permutation, found by solving
+    the assignment problem). When aligned grounding greatly exceeds raw grounding, the network has
+    learned a \emph{systematic} relabeling---a reasoning shortcut. We flag a shortcut when
+    aligned${-}$raw${>}0.10$.
+    \item \para{Compositional OOD accuracy} --- multi-digit addition solved by a single-digit-trained
+    model via symbolic place-value composition.
+    \item \para{Training wall-clock} --- secondary.
+\end{itemize}
+
+\subsection{Protocol and reproducibility}
+We run $5$ seeds $\{0,\dots,4\}$ per configuration and report mean ${\pm}\,95\%$ $t$-based confidence
+intervals. The primary test is Welch's two-sample $t$-test (unequal variance) for \nesy vs.\ \neural at
+each training size, with Holm--Bonferroni correction across the six sizes and Cohen's $d$ effect sizes;
+for the compositional analysis we report Pearson correlation. All conditions use the same
+hyperparameters (12 epochs, batch size 128, Adam at $10^{-3}$), set in \texttt{src/config.py}; seeds are
+fixed for Python/NumPy/PyTorch. The full grid (E1+E5 $=165$ runs, E3 $=30$, E4 $=15$) runs in roughly
+five minutes across three GPUs on an NVIDIA RTX A6000 (PyTorch 2.12, CUDA). Raw per-run results, the
+aggregate statistics, and figures are saved under \texttt{results/} and \texttt{figures/}.

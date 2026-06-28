@@ -1,0 +1,20 @@
+Neuro-symbolic (NeSy) systems promise to combine neural perception with symbolic reasoning,
+yielding data efficiency, interpretable symbols, and compositional reuse. But these promises rest
+on a hidden assumption: that the system actually \emph{grounds} its latent symbols correctly. We
+ask, on the canonical \mnistadd benchmark, when wiring a fixed symbolic ``$+$'' into a shared neural
+digit classifier---trained only on the \emph{sum} of two images, never on the digits themselves---
+produces genuine perception-plus-reasoning, and when it only appears to. Across 210 training runs
+(5 seeds per configuration), we report four findings measured side by side with confidence intervals
+and significance tests. First, integration is a large data-efficiency win: at 1{,}000 training pairs
+the NeSy model reaches $85.4\%$ sum accuracy versus $22.0\%$ for a pure-neural baseline (Welch
+$p{=}2.9{\times}10^{-13}$), matching a fully digit-supervised oracle. Second, high task accuracy can
+hide a broken model: changing only the symbolic operator to $(a{+}b)\bmod 10$ makes correct grounding
+\emph{never} emerge---raw grounding $\approx0.1\%$ among seeds that learn the task---because the
+network reads digits via a systematic relabeling that leaves the modular sum invariant, a reasoning
+shortcut visible only when grounding is measured permutation-aligned. Third, just $10$ labeled images
+(one per class) eliminate the shortcut and stabilize training (grounding $\approx0.1\%\to97.7\%$),
+whereas unsupervised regularizers do not. Fourth, correct grounding unlocks zero-shot compositional
+generalization to $2$- and $3$-digit addition ($95.7\%$/$93.7\%$) that the neural baseline structurally
+cannot achieve ($0\%$). The lesson for practitioners: task accuracy is not enough; grounding must be
+measured, the operator's symmetry determines whether symbols are identifiable, and a pinch of symbol
+supervision is a cheap, decisive fix.

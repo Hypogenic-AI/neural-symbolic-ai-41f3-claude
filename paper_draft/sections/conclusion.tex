@@ -1,0 +1,25 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We asked when integrating a fixed symbolic operation with a shared neural classifier produces a system
+that genuinely perceives and reasons, and answered it with a single controlled study on \mnistadd.
+Integration (i) is a large, statistically significant capability and data-efficiency win that matches a
+fully-supervised oracle and beats a neural baseline, most sharply with little data; (ii) recovers the
+\emph{correct} latent symbols \emph{if and only if} the task's structure identifies them---when it does
+not, as under modular addition, the system reaches high task accuracy through systematic reasoning
+shortcuts that only a permutation-aware grounding metric can detect; (iii) is cheaply repaired with
+about $10$ labeled symbols exactly when a shortcut exists; and (iv) when grounding is correct, unlocks
+zero-shot compositional generalization to multi-digit addition (${\sim}95\%$) that the neural baseline
+structurally cannot achieve ($0\%$).
+
+\para{Key takeaway.} In neuro-symbolic systems, task accuracy is not enough: measure latent grounding
+permutation-aligned, analyze the symbolic operator for symmetries that fail to identify the symbols, and
+if shortcuts are possible add a handful of labeled symbols---the cheapest, most reliable fix, and one
+that unsupervised regularization does not match.
+
+\para{Future work.} We plan to (a) replicate the symmetry$\to$(non)identifiability mechanism on HWF and
+a relational task such as CLUTRR; (b) probe richer shortcut-inducing operators (parity,
+sum-mod-$m$ for various $m$) to map identifiability as a function of operator algebra; (c) compare our
+compact marginalization against DeepProbLog and Scallop on the \emph{same} grounding metric; and (d)
+study an active-learning loop that requests the minimum labeled symbols needed to break a detected
+shortcut.

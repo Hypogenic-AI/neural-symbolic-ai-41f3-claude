@@ -1,0 +1,11 @@
+# Exclude all data files (can be large)
+*
+# But keep documentation and small samples
+!.gitignore
+!README.md
+!**/README.md
+!**/samples.json
+!**/samples/
+!mnist/mnist_addition/train_pairs.csv
+!mnist/mnist_addition/test_pairs.csv
+!mnist/mnist_addition/samples.json

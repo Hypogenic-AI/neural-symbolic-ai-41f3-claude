@@ -1,0 +1,66 @@
+\section{Introduction}
+\label{sec:intro}
+
+Neuro-symbolic (NeSy) AI sets out to build a single system that \emph{perceives} with neural networks
+and \emph{reasons} with symbolic structure~\citep{garcez2020,marra2021}. The appeal is concrete: by
+factoring a task into ``recognize the parts'' and ``combine them with known rules,'' a NeSy model
+should learn from far less data, expose interpretable intermediate symbols, and reuse those symbols
+to solve problems it was never trained on. The canonical demonstration is \mnistadd
+\citep{manhaeve2018}: a model sees two digit images and is supervised only on their \emph{sum}, never
+on the digits, yet is expected to learn to read digits as a by-product of learning to add.
+
+\para{The promise hides an assumption.} Every downstream NeSy benefit---interpretability, knowledge
+reuse, compositional generalization---depends on the latent symbols being \emph{correct}. If the
+network learns a mapping from images to symbols that is systematically wrong but still produces the
+right final answer, the system has not understood anything; it has found a \newterm{reasoning
+shortcut}~\citep{li2024softened,deepsymbolic2022}. A practitioner who watches only task accuracy
+will never notice. This is not a hypothetical: with only distant supervision, the perception-to-symbol
+map is under-constrained, and training can collapse onto a spurious but self-consistent solution.
+
+\para{What is missing.} The two headline NeSy claims---data efficiency and correct
+grounding---are widely asserted but rarely measured together with statistical rigor on identical
+splits. Data efficiency is seldom reported head-to-head against a neural baseline with confidence
+intervals, and \emph{grounding accuracy is almost never reported at all}, so reasoning shortcuts stay
+invisible. Prior work raises the shortcut problem qualitatively, but a controlled, multi-seed
+\emph{measurement} of \emph{when} shortcuts appear, \emph{what they look like}, and \emph{which cheap
+fixes work} has been missing.
+
+\para{Our approach.} We run a single controlled study on \mnistadd that measures four quantities
+side by side, on identical splits, across $5$ seeds, with Welch $t$-tests, Holm--Bonferroni
+correction, and Cohen's $d$ effect sizes. We compare three models on a \emph{shared} CNN encoder so
+the only variable is the learning signal: a \neural baseline that predicts the sum directly, a
+\nesy model that outputs per-image digit distributions and computes the sum by exact differentiable
+marginalization (the DeepProbLog/Scallop idea in compact form), and an \oracle trained on true digit
+labels as an upper bound. The study is held together by one clean manipulation: \emph{flipping a single
+symbolic operator}, standard addition $a{+}b$ versus modular addition \modten, which turns reasoning
+shortcuts on and off while everything else---architecture, data, optimizer---stays fixed.
+
+\para{What we find.} (i) Integration is a large, statistically significant data-efficiency win:
+at $1{,}000$ pairs the \nesy model reaches $85.4\%$ sum accuracy versus the neural baseline's
+$22.0\%$ (Cohen's $d{=}56$, $p{=}2.9{\times}10^{-13}$), recovering digits at $92$--$99\%$ with no
+digit labels. (ii) Yet under the modular operator, correct grounding \emph{never} emerges: among
+seeds that learn the task, raw grounding is $\approx0.1\%$, while a permutation-aligned metric reveals
+a clean systematic relabeling---sometimes the exact cyclic shift $d\mapsto(d{+}5)\bmod 10$. The
+oracle grounds at $99\%$ on the \emph{same} task, so the failure is caused by distant supervision under
+a symmetric operator, not by the task being hard. (iii) Just $10$ labeled images break the symmetry
+and restore grounding to $97.7\%$ in every seed; unsupervised regularizers do not. (iv) With correct
+grounding, the \nesy model solves $2$- and $3$-digit addition it never saw at $95.7\%$/$93.7\%$ by
+composing its digit classifier with a symbolic place-value sum, while the neural baseline scores
+exactly $0\%$.
+
+\para{Contributions.}
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item We quantify NeSy data efficiency head-to-head against a neural baseline and a digit-supervised
+    oracle on identical splits, with confidence intervals and effect sizes at six training sizes.
+    \item We introduce a permutation-aware (Hungarian-aligned) grounding diagnostic and use a
+    single-operator flip ($a{+}b$ vs.\ \modten) to show that whether high task accuracy implies correct
+    symbols is a property of the \emph{task's symmetry}, not of NeSy in general.
+    \item We compare cheap mitigations and show that a handful of labeled symbols ($10$ images) is the
+    decisive, reliable fix for a detected shortcut, while unsupervised priors are not.
+    \item We demonstrate that correct grounding unlocks zero-shot compositional generalization to
+    multi-digit addition---a capability the neural baseline structurally lacks.
+\end{itemize}
+
+The rest of the paper reviews related work (\secref{sec:related}), details our models, operators, and
+metrics (\secref{sec:method}), presents results E1--E5 (\secref{sec:results}), discusses
+interpretation and limitations (\secref{sec:discussion}), and concludes (\secref{sec:conclusion}).

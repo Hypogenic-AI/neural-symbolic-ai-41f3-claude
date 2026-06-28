@@ -1,0 +1,946 @@
+You are an academic paper writer. Generate a complete NEURIPS style paper
+based on the experiment results provided.
+
+════════════════════════════════════════════════════════════════════════════════
+                         IMPORTANT: BEFORE YOU START
+════════════════════════════════════════════════════════════════════════════════
+
+Before writing any content, you MUST complete these steps:
+
+1. READ THE SKILL: Review the paper-writer skill at .claude/skills/paper-writer/SKILL.md
+2. READ THE STYLE GUIDE: Study templates/paper_writing/lab_style_guide.md carefully
+3. REVIEW EXAMPLES: Browse paper_examples/ for formatting and language patterns:
+   - Look at sections/1.introduction.tex for language style
+   - Look at tables/*.tex for table formatting
+   - Look at commands/*.tex for macro usage
+4. VERIFY COMMAND TEMPLATES: Command templates (math.tex, general.tex, macros.tex) are pre-copied to paper_draft/commands/
+
+CRITICAL: Reference example papers for FORMATTING and LANGUAGE STYLE only.
+Do NOT copy content, phrasing, or narrative structure from the example papers.
+The examples are in a different research domain - focus only on presentation style.
+
+════════════════════════════════════════════════════════════════════════════════
+                            EXPERIMENT REPORT
+════════════════════════════════════════════════════════════════════════════════
+
+# When Does Neural-Symbolic Integration *Understand*? Data Efficiency, Reasoning Shortcuts, and Compositional Generalization on MNIST-Addition
+
+**Domain:** Artificial Intelligence — Neuro-Symbolic learning
+**Benchmark:** MNIST-Addition (canonical NeSy task)
+**Date:** 2026-06-28 · **Hardware:** NVIDIA RTX A6000 (CUDA), PyTorch 2.12
+
+---
+
+## 1. Executive Summary
+
+We ask whether wiring a *fixed symbolic addition operation* into a shared neural digit
+classifier — trained only on the **sum** of two digit images, never on the digits themselves —
+produces a system that genuinely *perceives and reasons*, and under what conditions that promise
+holds. Across 210 training runs (5 seeds each), we find a sharp, three-part answer.
+
+**(1) Integration is a large, statistically significant capability win.** The neuro-symbolic (NeSy)
+model matches a fully digit-supervised oracle and dramatically beats a pure-neural baseline,
+especially with little data: at 1,000 training pairs it reaches **85.4%** sum accuracy vs the
+neural baseline's **22.0%** (Welch *t*, *p*=2.9e-13, Cohen's *d*=56), and it recovers the latent
+digits at **92–99%** accuracy *with no digit labels at all*.
+
+**(2) But high task accuracy can hide a broken mind — and we show exactly when.** The same
+architecture, data, and training, with the *only* change being the symbolic operation (`a+b` →
+`(a+b) mod 10`), makes correct grounding **never emerge**: among the seeds that learn the modular
+task at all, **raw grounding is ≈0.1%** (mean 0.09%, max 0.16%) — the network solves the task by
+reading the digits **systematically wrong** via a global relabeling that leaves `(a+b) mod 10`
+invariant. The shortcut is a **systematic off-diagonal permutation** (Figure 3), occasionally an
+*exact* cyclic shift (e.g. `[5,6,7,8,9,0,1,2,3,4]`, every *d* perceived as *(d+5) mod 10*). Training
+is also unstable: in our 5-seed grid, **4/5 seeds find a shortcut and 1/5 collapses** (fails to fit,
+task accuracy 0.11). A fully digit-supervised oracle on the *same* modular task grounds at **99.0%**,
+so the failure is caused by distant supervision under a symmetric operator, not by the task being
+unlearnable. We further show **10 labeled images total** (one per class) eliminate the shortcut and
+stabilize training (grounding ≈0.1% → **97.7%**, *p*=1.6e-3; every seed), whereas unsupervised
+regularizers do not.
+
+**(3) Correct grounding unlocks a capability neural nets structurally lack.** A NeSy model trained
+**only on single-digit sums** solves **2- and 3-digit** number addition it has *never seen*, at
+**95.7%** and **93.7%**, by composing its digit classifier with a symbolic place-value sum. The
+neural baseline scores **exactly 0%** — it cannot even represent the output. *Practical implication:*
+in NeSy systems, **task accuracy is not enough**; grounding must be measured, the task's symmetry
+determines whether grounding is identifiable, and a tiny amount of symbol supervision is a cheap,
+decisive fix.
+
+---
+
+## 2. Research Question & Motivation
+
+**Question.** On MNIST-Addition, does integrating a fixed symbolic `+` with a shared neural digit
+classifier trained on *sums only* (i) match an oracle and beat a neural baseline, especially with
+little data; (ii) recover the *correct* latent symbols or exploit reasoning shortcuts; (iii) admit a
+cheap fix when grounding fails; and (iv) generalize compositionally to multi-digit addition never
+seen in training?
+
+**Why it matters.** NeSy AI promises perception + reasoning in one system, with data efficiency,
+interpretability, and reusable symbols. But if the learned latent symbols are *wrong*, every
+downstream promise collapses silently — and a practitioner watching only task accuracy will never
+notice. Our literature review (`literature_review.md` §6) flags two under-reported gaps: the
+"NeSy is data-efficient" claim is rarely measured head-to-head with confidence intervals on
+identical splits, and **grounding accuracy is rarely reported**, so reasoning shortcuts are
+invisible. Softened Symbol Grounding (2024) and Deep Symbolic Learning (2022) raise the shortcut
+problem qualitatively; a controlled, multi-seed *measurement* of when shortcuts appear, what they
+look like, and which cheap fixes work has been missing.
+
+**Contribution.** A single controlled study on one benchmark that measures, side-by-side and with
+statistics, four quantities the literature usually reports in isolation: **(E1) data efficiency**,
+**(E2/E5) the task-accuracy–vs–grounding gap with a permutation-aware shortcut detector**,
+**(E3/E5) mitigations**, and **(E4) compositional OOD generalization** — tied together by a clean
+"flip one symbolic operator" manipulation (`+` vs `+ mod 10`) that turns shortcuts on and off while
+holding everything else fixed.
+
+---
+
+## 3. Experimental Setup
+
+### Models (identical shared CNN encoder — only the head/learning signal differs)
+- **Neural-only baseline.** Shared LeNet-style encoder applied to each image; the two feature
+  vectors are concatenated → MLP → 19-way softmax over sums {0..18}. Knows nothing about the
+  additive structure. (For modular addition: 10-way head.)
+- **Neuro-Symbolic (NeSy).** Shared encoder → 10-way digit log-probabilities per image. The sum
+  distribution is computed *exactly and differentiably* as `P(sum=s)=Σ_{a+b=s}P(a)P(b)` (the
+  convolution of the two digit pmfs — the DeepProbLog/Scallop idea in compact form). Trained with
+  NLL on the **true sum only** (distant supervision). The symbolic `+` is fixed, never learned.
+- **Oracle (upper bound).** The same 10-way CNN trained with direct digit cross-entropy on the true
+  labels; bounds achievable grounding/accuracy.
+
+### Symbolic operators
+- **Standard addition:** output 0..18.
+- **Modular addition `(a+b) mod 10`:** output 0..9. Chosen deliberately: it removes the boundary
+  constraints (sum 0⇒0+0, sum 18⇒9+9) that pin the grounding, and admits an exact affine shortcut
+  `d ↦ (d+5) mod 10` (and other cyclic relabelings), so it *induces* shortcuts under distant
+  supervision. The oracle is unaffected because it sees true labels.
+
+### Data
+MNIST-Addition, pre-built locally (`datasets/mnist/mnist_addition/`): 30,000 train pairs, 5,000 test
+pairs, indices into MNIST `x_train`/`x_test`. True digit labels `y_*` are used **only** for
+evaluation (grounding) and for the oracle / mitigation conditions. Data integrity was verified
+(true digits sum to the stored target; test indices map exactly to `x_test`). For E4 we
+deterministically synthesize 2- and 3-digit number-addition test sets (5,000 examples each) from
+MNIST test images.
+
+### Metrics
+- **Test sum accuracy** (primary task metric).
+- **Digit-grounding accuracy** — raw (argmax digit vs true label) and **Hungarian-aligned** (best
+  10×10 label permutation, via the assignment problem). When *aligned ≫ raw*, the network learned a
+  *systematic* relabeling — a reasoning shortcut. We flag `is_shortcut` when aligned − raw > 0.10.
+- **Compositional OOD accuracy** — multi-digit addition by a single-digit-trained model.
+- **Training wall-clock** (secondary).
+
+### Protocol & reproducibility
+5 seeds {0..4} per configuration; mean ± 95% t-CI; **Welch's** two-sample *t*-tests (unequal
+variance) with **Holm–Bonferroni** correction across train sizes; **Cohen's *d*** effect sizes;
+Pearson correlation for H4. Epochs=12, batch=128, Adam lr=1e-3, fixed across all conditions
+(`src/config.py`). Seeds set for Python/NumPy/Torch. The full grid (E1+E5 = 165 runs; E3=30; E4=15)
+runs in ~5 minutes total across 3 GPUs. Raw per-run results in `results/raw/`; aggregates in
+`results/stats.json`; figures in `figures/`.
+
+---
+
+## 4. Results
+
+### E1 — Data efficiency (standard addition): integration is a large win, all sizes significant
+NeSy beats the neural baseline at **every** training size (Holm-corrected *p*<0.01 throughout),
+with the gap largest in the low-data regime, and tracks the oracle closely.
+
+| # train pairs | Neural-only | **NeSy (sum-only)** | Oracle | NeSy−Neural | Cohen's *d* | Welch *p* (raw) | Holm-adj. *p* |
+|--------------:|------------:|--------------------:|-------:|------------:|------------:|----------------:|--------------:|
+| 100   | 0.086 | **0.130** | 0.429 | +0.044 | 2.28 | 8.8e-3 | 8.8e-3 |
+| 500   | 0.130 | **0.649** | 0.794 | +0.519 | 5.43 | 9.3e-4 | 1.9e-3 |
+| 1,000 | 0.220 | **0.854** | 0.868 | +0.634 | 56.3 | 2.9e-13 | 1.7e-12 |
+| 5,000 | 0.883 | **0.955** | 0.958 | +0.072 | 10.25 | 1.6e-6 | 7.9e-6 |
+| 15,000| 0.952 | **0.973** | 0.975 | +0.021 | 4.82 | 3.8e-4 | 1.5e-3 |
+| 30,000| 0.970 | **0.980** | 0.981 | +0.010 | 4.13 | 4.8e-4 | 1.5e-3 |
+
+*(All Holm-adjusted p < 0.01 ⇒ every comparison remains significant after family-wise correction.)*
+
+*(Figure 1a.)* The neural baseline needs ~5,000 pairs to reach what NeSy achieves with ~1,000.
+
+### E2 — Grounding emerges *without* digit labels (standard addition)
+*(Figure 1b.)* NeSy's latent digit-grounding rises from 28.3% (100 pairs) to **99.0%** (30k pairs),
+essentially matching the digit-supervised oracle (99.0%) — even though NeSy never saw a digit label.
+The Hungarian-aligned grounding equals the raw grounding (**0/5 shortcut flags at every size**):
+standard MNIST-Addition is **shortcut-robust**, because the boundary sums uniquely pin the symbols.
+The apparent sum-vs-grounding gap (e.g. 85.4% sum vs 92.4% grounding at 1k) is just the
+"both-digits-must-be-right" effect (sum ≈ grounding²), **not** a shortcut.
+
+### E5 — Inducing shortcuts: flip the operator, grounding collapses
+*(Figures 2, 3.)* Changing only the symbolic operator to `(a+b) mod 10`:
+
+| Task (NeSy, N=30k) | sum acc (mean±CI) | grounding (raw) | Hungarian-aligned | outcome over 5 seeds |
+|--------------------|------------------:|----------------:|------------------:|----------------------|
+| standard `a+b`        | 0.980 ± 0.002 | **0.990** | 0.990 | 0/5 shortcut (grounds correctly) |
+| modular `(a+b) mod 10`| 0.657 ± 0.380 | **0.020** | 0.471 | **4/5 shortcut + 1/5 task-collapse** |
+| modular — *oracle* (digit-supervised) | 0.979 | 0.990 | 0.990 | 0/5 (control: same task, grounds fine) |
+
+Among the 4 seeds that actually learn the modular task (sum>0.3), raw grounding is **0.09%** (max
+0.16%) — they read the digits systematically wrong via a global relabeling that leaves `(a+b) mod 10`
+invariant (Figure 3: clean off-diagonal permutations; one seed lands on the exact `(d+5)` cyclic
+shift). The 5th seed collapses to predicting a single class (Figure 3, rightmost). The
+digit-supervised **oracle grounds at 99.0% on the identical modular task**, so the collapse of
+grounding is caused by *distant supervision under a symmetric operator*, not by the task. Standard vs
+modular grounding: **0.990 vs 0.020**, Welch *p*=9.6e-7, Cohen's *d*=31.5. This reasoning shortcut is
+visible *only* because we measured grounding; task accuracy alone is blind to it.
+
+### E3 / E5 — Mitigations: needed and effective exactly when a shortcut exists
+*(Figure 5.)* Grounding accuracy under each intervention (standard add evaluated at N=1,000, the regime where its
+grounding gap is largest; modular add at N=5,000, where the shortcut is firmly established — each
+column is a *within-task* before/after, so the differing N does not affect the conclusion):
+
+| Intervention | Standard add @N=1k (no shortcut) | Modular add @N=5k (shortcut present) |
+|--------------|---------------------------------:|-------------------------------------:|
+| baseline (none)              | 0.924 | 0.116 (4/5 ≈0; 1 seed 0.57) |
+| **+ aux digit labels, 1/class (10 total)** | 0.925 | **0.977** |
+| + aux 5/class (50 total)     | 0.926 | 0.977 |
+| + aux 20/class (200 total)   | 0.931 | 0.979 |
+| + marginal-uniformity prior  | 0.924 | 0.390 |
+| + entropy regularization     | 0.925 | 0.128 |
+
+On standard addition, mitigations do essentially nothing (there is no shortcut to fix). On modular
+addition, **just 10 labeled images** break the symmetry and restore grounding to **97.7% in every
+seed** (per-seed 0.973–0.981; baseline per-seed grounding 0.001–0.005 for the shortcut seeds, with one
+partial seed at 0.57 inflating the baseline mean to 0.116; Welch *p*=1.6e-3, *d*=4.8), while also
+*stabilizing* training (task accuracy → 0.954, no collapses). Unsupervised regularizers help only
+partially (uniform prior, high variance) or hurt (entropy). *Take-away: a pinch of grounding
+supervision is the decisive lever; clever unsupervised priors are not a reliable substitute.*
+
+### E4 — Compositional generalization: the payoff of correct grounding
+*(Figure 4.)* Trained on **single-digit** sums only, then evaluated zero-shot on multi-digit number
+addition by composing the digit classifier with a symbolic place-value sum:
+
+| Model | 2-digit addition (OOD) | 3-digit addition (OOD) | single-digit grounding |
+|-------|-----------------------:|-----------------------:|-----------------------:|
+| Neural-only | **0.000** | **0.000** | 0.000 (n/a) |
+| **NeSy** | **0.957** | **0.937** | 0.990 |
+| Oracle | 0.960 | 0.940 | 0.990 |
+
+The neural baseline cannot even emit sums in this range (structural failure → 0%). NeSy generalizes
+to a task structure it never saw, *because* its grounding is correct — the single most direct
+evidence that integration buys a genuinely new capability, not just a benchmark number.
+
+---
+
+## 5. Analysis & Discussion
+
+**H1 (capability) — supported, strongly.** Integrating the symbolic operator factorizes the task
+into digit recognition, so the model learns from far fewer examples and matches the oracle. Effect
+sizes are large at every size and overwhelming at 1k pairs (*d*=56). This quantifies, with CIs on
+identical splits, the data-efficiency claim the literature usually only asserts.
+
+**H2 (grounding gap / shortcuts) — nuanced and, we argue, the most useful finding.** Whether high
+task accuracy implies correct symbols is **not** a property of NeSy in general — it is a property of
+the *task's symmetry*. Standard addition is shortcut-robust (its boundary constraints identify the
+symbols); modular addition is shortcut-prone (its rotational symmetry does not). The same network
+swings from 99.0% grounding to ≈0.1% (among task-learning seeds) when we flip one operator, while the
+oracle — which sees digit labels — grounds at 99% on *both* operators (the clean control). The
+Hungarian-aligned metric is what makes the failure legible: aligned grounding (≈0.53–0.60 on shortcut
+seeds, up to 0.99 on the cleanest cyclic-shift realization) sits far above the ≈0.1% raw value,
+revealing a *systematic relabeling* rather than random noise. **Methodological implication:** report
+grounding, and report it permutation-aligned; sum accuracy alone is blind to this.
+
+**H3 (mitigation) — supported.** The cure matches the disease: when identifiability is the problem,
+a tiny amount of identifying information (10 labels → grounding 0.977 in every seed) fixes it *and*
+removes the training instability; unsupervised regularizers, which do not add identifying
+information, mostly cannot. This reframes "mitigation" as "supply the missing constraint," and shows
+it is extremely cheap when needed and unnecessary when not.
+
+**H4 (compositional OOD) — supported, with an honest caveat.** Correct grounding is what lets the
+symbolic composition extend to unseen problem sizes; the neural baseline's structural 0% is the
+foil. Across the grounded models, single-digit grounding and OOD accuracy correlate almost perfectly
+(Pearson *r*=0.993, *p*=1e-8) — but we note this correlation spans models that *all* ground well
+(NeSy, oracle), so the **categorical** contrast (0.00 for the ungrounded neural baseline vs ~0.96
+for grounded models) is the stronger evidence; the within-grounded correlation has little spread and
+should not be over-read.
+
+**Surprises.** (i) That a single operator flip makes correct grounding vanish so reliably (raw
+grounding ≈0.1% in every seed that learns the task), and that the model sometimes lands on the
+*exact* algebraically predicted `(d+5)` cyclic permutation, was sharper than expected — as was the
+training *instability* it induces (4/5 shortcut, 1/5 outright collapse). (ii) The neural baseline's high
+*variance* under modular addition at 30k (mean 0.79, sd 0.39: four seeds at 0.96–0.97 but one seed
+stuck at 0.10) — it occasionally fails to fit mod-10 at all — hints that the modular task is genuinely
+harder to represent without the additive factorization.
+
+**Error analysis.** NeSy's residual errors on standard addition occur on genuinely ambiguous digit
+images (consistent with its ~99% correct grounding), i.e. they are *perceptual*. NeSy "errors" under
+modular addition are *not* perceptual — they stem from a systematic global relabeling of the symbols
+(Figure 3), which is precisely why high task accuracy survives them.
+
+---
+
+## 6. Limitations
+
+- **Single benchmark / single perceptual domain.** All results are on MNIST digits. The *mechanism*
+  (task symmetry ⇒ (non)identifiability of symbols) should transfer, but we did not test other
+  modalities (e.g. CLEVR, HWF) — those datasets were documented but not run here for scope/time.
+- **One symbolic relaxation.** We use exact differentiable marginalization (DeepProbLog/Scallop
+  family). We did not run DeepProbLog/NeurASP/Scallop *implementations* themselves as additional
+  NeSy references; our NeSy model is a faithful compact re-implementation of their core idea, not a
+  benchmark of those toolkits.
+- **H4 correlation has low spread** (see §5) — we rely on the categorical contrast for the main
+  claim and flag the correlation as suggestive only.
+- **GPU non-determinism and modular instability.** Atomic `index_add_`/conv-backward make runs not
+  bit-identical even with fixed seeds; the *specific* permutation a modular run lands on, and whether
+  a given seed shortcuts vs. collapses, varies across re-runs. The robust, re-run-invariant phenomenon
+  is that under the modular operator **correct grounding never emerges** (raw grounding ≈0.1% whenever
+  the task is learned; the oracle, by contrast, always grounds at 99%). Because modular NeSy is
+  unstable (here 4/5 shortcut + 1/5 collapse), aggregate statistics over seeds — not single runs — are
+  the unit of inference, and Figure 3 reads the exact saved grid runs rather than fresh retrains.
+  Standard-addition results are stable across re-runs (e.g. NeSy@1k reproduced to within ±0.01).
+- **Modular addition is a deliberately constructed shortcut-inducer**, not a naturally occurring
+  task; it is a controlled probe of the mechanism, chosen for its exact, analyzable symmetry.
+
+---
+
+## 7. Conclusions & Next Steps
+
+**Answer to the research question.** Integrating a fixed symbolic operation with a shared neural
+classifier (i) is a large, statistically significant capability and data-efficiency win that matches
+a fully-supervised oracle and beats a neural baseline; (ii) recovers the *correct* latent symbols
+**iff the task's structure identifies them** — when it does not (modular addition), the system hits
+high task accuracy via systematic reasoning shortcuts that only a grounding/permutation metric can
+detect; (iii) is cheaply repaired with ~10 labeled symbols exactly when a shortcut exists; and (iv)
+when grounding is correct, unlocks zero-shot compositional generalization (multi-digit addition at
+~95%) that the neural baseline structurally cannot achieve (0%).
+
+**Practical guidance for NeSy practitioners.** Always measure latent grounding, permutation-aligned,
+alongside task accuracy. Analyze your symbolic operator for symmetries that fail to identify the
+symbols. If shortcuts are possible, add a handful of labeled symbols — it is the cheapest, most
+reliable fix and beats unsupervised regularization.
+
+**Next steps.** (a) Replicate the symmetry→(non)identifiability mechanism on HWF and a relational
+task (CLUTRR); (b) test richer shortcut-inducing operators (parity, sum-mod-*m* for various *m*) to
+map identifiability as a function of operator algebra; (c) compare our compact marginalization
+against DeepProbLog/Scallop on the *same* grounding metric; (d) study an active-learning loop that
+requests the *minimum* labeled symbols to break a detected shortcut.
+
+---
+
+## References (used in this study)
+- Manhaeve et al. (2018) **DeepProbLog: Neural Probabilistic Logic Programming** — `papers/deepproblog_2018.pdf` (MNIST-Addition; differentiable marginalization).
+- Li et al. (2023) **Scallop: A Language for Neurosymbolic Programming** — `papers/scallop_lang_2023.pdf` (provenance-semiring differentiable Datalog).
+- Yang et al. (2020) **NeurASP** — `papers/neurasp_2020.pdf`.
+- Li et al. (2024) **Softened Symbol Grounding for Neuro-symbolic Systems** — `papers/softened_symbol_grounding_2024.pdf` (reasoning shortcuts / grounding).
+- Deep Symbolic Learning (2022) — `papers/deep_symbolic_learning_2022.pdf`.
+- Xu et al. (2017) **A Semantic Loss Function** — `papers/semantic_loss_2017.pdf`.
+- Badreddine et al. (2020) **Logic Tensor Networks** — `papers/logic_tensor_networks_2020.pdf`.
+- Garcez & Lamb (2020) **Neurosymbolic AI: the 3rd wave** — `papers/neurosymbolic_3rd_wave_2020.pdf`.
+- Marra et al. (2021) **From Statistical Relational to Neurosymbolic AI** — `papers/starai_to_nesy_survey_2021.pdf`.
+- Full literature synthesis: `literature_review.md`; resource catalog: `resources.md`.
+
+**Tools:** PyTorch 2.12 (+CUDA), NumPy, SciPy (stats, Hungarian assignment), scikit-learn,
+Matplotlib. **Data:** MNIST-Addition (`datasets/`). **Code:** `src/` (this study);
+reference NeSy repos in `code/`.
+
+
+════════════════════════════════════════════════════════════════════════════════
+                            RESEARCH PLAN
+════════════════════════════════════════════════════════════════════════════════
+
+# Research Plan: Reasoning Shortcuts & Compositional Generalization in Neuro-Symbolic Learning
+
+**Research domain:** Artificial Intelligence (Neuro-Symbolic learning)
+**Primary benchmark:** MNIST-Addition (`datasets/mnist/mnist_addition/`)
+**Date:** 2026-06-28
+
+---
+
+## Motivation & Novelty Assessment
+
+### Why This Research Matters
+Neuro-symbolic (NeSy) AI promises systems that *perceive* with neural nets and *reason* with
+symbolic structure. The headline claims in the literature are (a) **data efficiency** and (b)
+**interpretable, correct symbol grounding**. But a subtle and under-reported failure mode —
+**reasoning shortcuts** — means a NeSy system can achieve near-perfect *task* accuracy while
+learning a *systematically wrong* mapping from perception to symbols (e.g. a consistent
+permutation of the digits). If the latent symbols are wrong, every downstream promise of NeSy
+(interpretability, knowledge reuse, compositional generalization) collapses silently. Practitioners
+who only watch task accuracy will not notice. Quantifying *when* shortcuts appear and *what fixes
+them* is therefore directly important for anyone deploying NeSy systems.
+
+### Gap in Existing Work
+From `literature_review.md` (§6 Gaps): the "NeSy is more data-efficient" claim is widely *asserted*
+but rarely measured head-to-head on identical splits with confidence intervals; and **grounding
+accuracy is under-reported** — most papers report only task accuracy, so reasoning shortcuts are
+invisible. Softened Symbol Grounding (2024) and Deep Symbolic Learning (2022) raise the shortcut
+problem but a clean, controlled, multi-seed *measurement* of the task-accuracy–vs–grounding-accuracy
+gap, the conditions under which shortcuts emerge, and a comparison of cheap mitigations is missing.
+
+### Our Novel Contribution
+A controlled empirical study on MNIST-Addition that, on identical splits and across 5 random seeds,
+measures **four** things side-by-side that the literature usually reports in isolation:
+1. **Capability / data efficiency** — NeSy vs. neural-only vs. digit-supervised oracle.
+2. **The grounding gap** — task (sum) accuracy *minus* latent digit-grounding accuracy, including a
+   permutation-aware analysis (Hungarian alignment) that explicitly detects *systematic* shortcuts.
+3. **Mitigations** — three cheap interventions (a few labeled digits; a marginal-uniformity prior;
+   prediction-entropy regularization) and how much grounding each restores.
+4. **Compositional OOD generalization (capstone)** — reuse the single-digit classifier, composed
+   with a *symbolic place-value sum*, to solve **multi-digit** addition never seen in training.
+   This is the sharpest test of "integration → a new capability": the neural-only model is
+   structurally incapable of it; the NeSy model should do it zero-shot *iff* its grounding is correct
+   — tying the capstone directly back to the grounding-gap finding.
+
+### Experiment Justification
+- **E1 (Data efficiency):** Establishes the core NeSy capability claim with statistical rigor —
+  needed as the foundation and to locate the low-data regime where shortcuts are most likely.
+- **E2 (Grounding gap / shortcuts):** The scientific heart — measures whether high sum accuracy
+  implies correct symbols. Needed because it is exactly the under-reported quantity.
+- **E3 (Mitigations):** Turns the diagnosis into actionable guidance — *which* cheap fix best
+  restores grounding. Needed to make the finding useful, not just cautionary.
+- **E4 (Compositional OOD):** Demonstrates the *payoff* of correct grounding and the unique
+  capability that integration unlocks. Needed to show why the grounding gap is not academic.
+
+---
+
+## Research Question
+On the canonical MNIST-Addition benchmark, does integrating a fixed symbolic addition operation
+with a shared neural digit classifier (trained on **sums only**, distant supervision) (i) match a
+fully digit-supervised oracle and beat a neural-only baseline — especially with little data; (ii)
+recover the *correct* latent digit grounding, or does it exploit reasoning shortcuts; (iii) admit a
+cheap fix when grounding fails; and (iv) generalize compositionally to multi-digit addition it never
+saw?
+
+## Background and Motivation
+See Motivation & Novelty above and `literature_review.md`. NeSy approach used here is the compact
+**differentiable marginalization** form of DeepProbLog/Scallop: the network outputs per-image digit
+distributions and P(sum=s)=Σ_{a+b=s} P(a)P(b) is computed by convolving the two distributions; the
+symbolic operation (+) is fixed and exact, only perception is learned.
+
+## Hypothesis Decomposition
+- **H1 (capability):** NeSy test sum-accuracy > neural-only, with the gap largest at small train
+  sizes; NeSy ≈ oracle at moderate+ data.
+- **H2 (grounding gap):** Test sum-accuracy overstates latent digit-grounding accuracy; the gap is
+  larger in the low-data regime; some seeds exhibit *systematic* shortcuts (permutation/collapse)
+  detectable by Hungarian-aligned grounding > raw grounding.
+- **H3 (mitigation):** A small grounding signal (few labeled digits) and/or a marginal-uniformity
+  prior raises grounding accuracy toward the oracle without hurting sum accuracy.
+- **H4 (compositional OOD):** NeSy (with correct grounding) solves 2-digit addition zero-shot via
+  symbolic place-value composition; neural-only ≈ chance/zero; OOD success tracks grounding accuracy.
+
+Independent variables: model type, #train pairs, mitigation type/strength, #digits at test.
+Dependent variables: test sum-accuracy, digit-grounding accuracy (raw + Hungarian-aligned),
+multi-digit accuracy, training time.
+
+## Proposed Methodology
+
+### Approach
+Implement all three models on a **shared CNN architecture** so the only difference is the
+learning signal / output head — a clean ablation isolating the symbolic structure as the variable.
+- **Neural-only:** shared CNN encodes each image; features concatenated → MLP → 19-way softmax over
+  sums {0..18}. No knowledge that sum=d1+d2.
+- **NeSy:** shared CNN → 10-way digit logits per image; P(sum)=conv(P(d1),P(d2)); NLL on true sum.
+  Symbolic addition fixed and exact. Distant supervision (sum only).
+- **Oracle:** same 10-way CNN trained with digit cross-entropy on true labels (upper bound on
+  grounding); sum via argmax. Bounds achievable performance.
+
+### Experimental Steps
+1. **E1 Data efficiency:** train sizes {100,500,1000,5000,15000,30000} × {neural,nesy,oracle} × 5
+   seeds. Metric: test sum-accuracy. Learning curves + per-size Welch t-tests (NeSy vs neural) and
+   Cohen's d.
+2. **E2 Grounding gap:** for nesy & oracle runs in E1, compute digit-grounding accuracy on test
+   images (argmax 10-way vs true label), plus **Hungarian-aligned** grounding (best label
+   permutation) to flag systematic shortcuts; report sum-acc − grounding-acc gap vs train size.
+3. **E3 Mitigations** (at a low-data size where the gap is largest): (a) +k labeled digits
+   (k∈{0,10,50,200}) via auxiliary digit CE; (b) marginal-uniformity prior (KL of batch-mean digit
+   distribution to uniform, weight λ); (c) entropy regularization. 5 seeds each. Metric: grounding
+   accuracy + sum accuracy.
+4. **E4 Compositional OOD:** build a 2-digit-number addition test set from MNIST (two 2-digit
+   numbers → sum 0..198). Evaluate the *single-digit-trained* classifiers composed with symbolic
+   place-value sum (NeSy, oracle); neural-only has no compatible output → report its structural
+   failure. Correlate OOD accuracy with single-digit grounding accuracy across seeds.
+
+### Baselines
+Neural-only CNN sum-classifier (the key contrast), and a digit-supervised oracle (upper bound), per
+`literature_review.md` §4. NeSy is the differentiable-marginalization DeepProbLog/Scallop family.
+
+### Evaluation Metrics
+- **Test sum-accuracy** (primary task metric).
+- **Digit-grounding accuracy** (raw and Hungarian-aligned) — detects shortcuts.
+- **Multi-digit (OOD) accuracy** — compositional generalization.
+- **Training wall-clock** — secondary.
+Justification: directly from `literature_review.md` §5; grounding + permutation-alignment is the
+under-reported axis this study adds.
+
+### Statistical Analysis Plan
+5 seeds per configuration. Report mean ± 95% CI (t-based; bootstrap as robustness check). Primary
+test: **Welch's two-sample t-test** (unequal variance) for NeSy vs neural-only at each train size;
+report **Cohen's d** effect sizes. Significance α=0.05; **Holm–Bonferroni** correction across the 6
+train-size comparisons. For H4, Pearson/Spearman correlation between grounding accuracy and OOD
+accuracy across seeds.
+
+## Expected Outcomes
+- **Supports H1** if NeSy ≫ neural-only at small N and ≈ oracle at large N (p<0.05, large d).
+- **Supports H2** if grounding-acc < sum-acc with a widening gap at low data, and ≥1 seed shows
+  Hungarian-aligned ≫ raw grounding (systematic shortcut).
+- **Supports H3** if a mitigation moves grounding toward oracle at fixed sum accuracy.
+- **Supports H4** if NeSy OOD accuracy ≫ 0 and correlates with grounding; neural-only ≈ 0.
+- **Refutes** correspondingly (e.g., if grounding is already near-perfect everywhere → MNIST-Addition
+  is shortcut-robust at single digit, itself a clean, honest, reportable result).
+
+## Timeline and Milestones
+- Phase 0–1 planning: done here. (~30 min)
+- Phase 2 data/code: ~40 min (data loaders, 3 models, trainer, metrics).
+- Phase 4 experiments E1–E4: ~60 min (CNNs train in ~10–30 s each on A6000; ~150 runs, GPU-parallel).
+- Phase 5 analysis + figures: ~30 min. Phase 6 report: ~25 min. ~20% debug buffer included.
+
+## Potential Challenges
+- **Reasoning shortcuts may be rare at single-digit** (boundary sums 0,18 strongly pin grounding):
+  if so, induce/observe them in the low-data regime and report honestly — either outcome is a result.
+- **Inference cost / scale:** kept tiny by design (single-digit marginalization is a 10×10 conv).
+- **Seed variance:** addressed by 5 seeds + CIs.
+- **OOD test fairness:** neural-only genuinely cannot emit sums>18; we report this as a structural
+  (not tuning) limitation and also give it the most charitable possible scoring.
+
+## Success Criteria
+The study succeeds if it delivers, with statistical support, a clear answer to each of H1–H4 and a
+quantified grounding gap with at least one concrete mitigation — regardless of which direction the
+hypotheses resolve. Reproducibility (fixed seeds, saved configs/results, runnable scripts) is
+required.
+
+## Reproducibility
+Fixed seeds; all hyperparameters in `src/config.py`; raw per-run results saved to `results/raw/`;
+aggregate to `results/`; figures to `figures/`; environment pinned via `pyproject.toml`/`uv.lock`.
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          LITERATURE REVIEW
+════════════════════════════════════════════════════════════════════════════════
+
+# Literature Review: Neural-Symbolic Learning
+
+**Research hypothesis.** *Investigate the integration of neural and symbolic learning
+approaches to achieve novel or improved capabilities.*
+
+**Scope.** This review synthesizes 20 downloaded papers (`papers/`) selected from a
+relevance-ranked set of 121 (paper-finder, diligent mode). It targets the practical question
+the experiment runner must answer: *what concrete, runnable setup best demonstrates that
+combining neural perception with symbolic reasoning improves a measurable capability?*
+
+---
+
+## 1. Research Area Overview
+
+Neural networks excel at perception and pattern recognition from raw data but are weak at
+systematic, compositional, data-efficient reasoning and offer little interpretability or a
+clean way to inject prior knowledge. Symbolic systems (logic programs, ASP, constraint
+solvers) are the mirror image: strong at compositional reasoning, knowledge injection, and
+explanation, but brittle and unable to learn from raw perceptual input. **Neuro-Symbolic
+(NeSy) AI** seeks to combine the two so that a single system perceives *and* reasons
+(Garcez & Lamb, *Neurosymbolic AI: the 3rd wave*, 2020; Yu et al. survey, 2021).
+
+Garcez et al. (*Neural-Symbolic Computing*, 2019) and the StarAI↔NeSy survey (Marra et al.,
+2021) frame the design space along recurring dimensions: (1) **how logic and learning are
+coupled** — logic compiled *into* the network vs. a differentiable logic layer vs. a neural
+front-end feeding a discrete solver; (2) **inference style** — proof-based vs. model-based;
+(3) **what is learned** — network parameters only, or also the symbolic rules/structure; and
+(4) **how tightly the original logical/probabilistic semantics are preserved**. A structured
+NLP review (Hamilton et al., 2022) reports an empirical regularity: systems where **logic is
+compiled into the neural network** tend to satisfy the most NeSy goals (reasoning, OOD
+generalization, interpretability, low-data learning).
+
+A central recurring obstacle is the **symbol grounding problem** with only distant
+supervision: when only the final answer (e.g. a sum) is supervised, the mapping from
+sub-symbolic input to symbols is under-constrained and training can collapse to spurious
+solutions (Li et al., *Softened Symbol Grounding*, 2024; *Deep Symbolic Learning*, 2022).
+
+---
+
+## 2. Taxonomy of Approaches (with representative downloaded papers)
+
+**A. Probabilistic logic + neural predicates (compile logic into a differentiable circuit).**
+- **DeepProbLog** (Manhaeve et al., 2018/2019) — adds a *neural predicate* to ProbLog;
+  probabilities of atoms are produced by a NN, inference compiled to SDDs, gradients flow end
+  to end. Introduces the **MNIST-Addition** benchmark. Exact inference → does not scale to
+  large symbol spaces.
+- **NeurASP** (Yang et al., 2020) — NN softmax outputs become a probability distribution over
+  atoms in an Answer Set Program; ASP rules both correct perception at inference and supervise
+  training via `clingo`.
+- **Scalable Neural-Probabilistic ASP / SLASH** (Skryagin et al., 2021/2023) — addresses
+  DeepProbLog/NeurASP scalability using probabilistic circuits and approximate solving.
+- **NeuPSL** (Pryor et al., 2022) — Neural Probabilistic Soft Logic; combines neural nets with
+  PSL's continuous (hinge-loss MRF) relational reasoning for scalable collective inference.
+- **Scallop** (Li et al., 2021/2023) — differentiable Datalog with **provenance semirings**;
+  a tunable top-k provenance trades exactness for scalability; exposed to PyTorch via `scallopy`.
+
+**B. Differentiable logic as a loss / representation layer.**
+- **Logic Tensor Networks** (Badreddine et al., 2020) — "Real Logic", a many-valued
+  differentiable first-order logic; formulas become satisfiability objectives. Unifies
+  classification, clustering, relational learning, regression.
+- **Semantic Loss** (Xu et al., 2017) — a differentiable loss measuring distance from
+  satisfying logical constraints over network outputs; strong for semi-supervised learning and
+  structured prediction. Knowledge-as-constraint rather than knowledge-as-architecture.
+
+**C. Neural front-end + symbolic program executor (modular).**
+- **NS-VQA** (Yi et al., 2018) — scene parser → symbolic scene; question parser → program;
+  deterministic executor. ~99.8% on CLEVR with little supervision; robust to long programs and
+  highly data-efficient.
+- **Neuro-Symbolic Concept Learner (NS-CL)** (Mao et al., 2019) — learns visual concepts,
+  words, and semantic parsing jointly from images+QA with **no** explicit concept/program
+  labels, via a curriculum and a differentiable program executor.
+
+**D. Learning the symbols / rules themselves (structure learning).**
+- **∂ILP — Learning Explanatory Rules from Noisy Data** (Evans & Grefenstette, 2017) — a
+  differentiable relaxation of Inductive Logic Programming; induces interpretable first-order
+  rules robust to noise.
+- **pix2rule** (Cingillioglu & Russo, 2021) — end-to-end learning of rules directly from pixels.
+- **Deep Symbolic Learning** (2022) — jointly *discovers* the discrete symbols and the rules
+  relating them from perception, instead of assuming a fixed symbol vocabulary.
+
+**E. LLM-era neurosymbolic reasoning (autoformalization + external solver).**
+- **LINC** (Olausson et al., 2023) — the LLM translates natural-language problems into
+  first-order logic, and an external theorem prover (Prover9) decides; substantially more
+  reliable than chain-of-thought on FOLIO / ProofWriter, especially for hard, multi-step
+  deduction.
+- **Improving Rule-based Reasoning in LLMs using Neurosymbolic Representations** (2025) —
+  injects symbolic representations to improve LLM rule-following.
+
+**F. Sequencing / planning.**
+- **Neurosymbolic RL and Planning: A Survey** (2023) — maps symbolic structure into RL for
+  sample-efficiency, safety, and interpretability.
+
+---
+
+## 3. Standard Benchmarks & Datasets in the Literature
+
+| Benchmark | Task | Used by | Notes |
+|-----------|------|---------|-------|
+| **MNIST-Addition** | sum two digit-images; only the sum is supervised | DeepProbLog, NeurASP, Scallop, NeuPSL, SLASH, Softened Symbol Grounding | **De-facto standard**; tiny, CPU-friendly; the canonical "perception via symbolic constraint" test. *Pre-built locally in `datasets/mnist/mnist_addition/`.* |
+| **Multi-digit / multi-addend addition** | sum of N k-digit numbers | DeepProbLog, SLASH, Scallop | Stresses scalability of inference. |
+| **Visual Sudoku** | solve Sudoku from images of digits | NeurASP, Scallop, Softened Symbol Grounding | Combines perception + hard constraints. |
+| **HWF (Hand-Written Formula)** | evaluate a handwritten arithmetic expression | DeepProbLog, NGS, Scallop | Larger symbol space; grammar constraints. |
+| **CLEVR** | compositional visual question answering | NS-VQA, NS-CL | ~18 GB; download instructions in `datasets/README.md`. |
+| **FOLIO / ProofWriter** | NL/FOL deductive reasoning | LINC, LLM-NeSy | For LLM-based neurosymbolic reasoning. |
+| **Knowledge graphs (FB15k, WN18, CLUTRR)** | link prediction / relational reasoning | LTN, DeepProbLog (CLUTRR), KG-NeSy surveys | Relational reasoning. |
+
+---
+
+## 4. Common Baselines
+
+- **Neural-only baseline.** The same perception network trained to predict the final label
+  directly (e.g., a CNN reading two concatenated images and predicting the 19-way sum). This is
+  the key contrast: NeSy methods reach far higher accuracy and far better data efficiency on
+  MNIST-Addition because the symbolic structure factorizes the task into digit recognition.
+- **Perception-then-symbolic with full digit supervision** (an *oracle/upper-bound*): train the
+  CNN on digit labels, then add. Bounds what perfect grounding could achieve.
+- **Other NeSy systems** on the same task (DeepProbLog vs. NeurASP vs. Scallop vs. NeuPSL) —
+  most papers cross-compare on MNIST-Addition and its multi-digit variants.
+- For LLM reasoning: **chain-of-thought / direct prompting** vs. the neurosymbolic
+  (autoformalize-then-prove) pipeline (LINC).
+
+---
+
+## 5. Evaluation Metrics
+
+- **Task accuracy** (e.g., exact-match accuracy of the predicted sum / answer). Primary metric.
+- **Data efficiency / learning curves** — accuracy vs. number of training examples; NeSy's
+  headline advantage. Strongly recommended as a second axis.
+- **Generalization to unseen structure** — e.g., train on N-digit, test on (N+k)-digit addition;
+  OOD/compositional generalization.
+- **Grounding accuracy** — does the latent digit predictor actually recover digits (not just the
+  sum)? Detects spurious "reasoning shortcuts."
+- **Wall-clock / inference cost** — exact probabilistic inference is the scalability bottleneck;
+  several papers (SLASH, Scallop top-k) are evaluated explicitly on time/scaling.
+- **Interpretability** (qualitative) — for rule-learners (∂ILP, pix2rule), whether the induced
+  rules are correct and human-readable.
+
+---
+
+## 6. Gaps and Opportunities
+
+1. **Scalability of exact inference.** DeepProbLog/NeurASP do exact probabilistic inference,
+   which blows up with more digits/objects. Approximate methods (SLASH, Scallop top-k provenance,
+   NeuPSL) trade exactness for scale — quantifying that trade-off on a controlled task is a clean,
+   tractable experiment.
+2. **Reasoning shortcuts / symbol grounding.** With only distant supervision, models can hit high
+   task accuracy while learning *wrong* digit groundings (e.g., a consistent permutation). Softened
+   Symbol Grounding (2024) and Deep Symbolic Learning (2022) tackle this. Measuring grounding
+   accuracy alongside task accuracy is under-reported and easy to add.
+3. **Data efficiency quantification.** The "NeSy is more data-efficient" claim is widely asserted;
+   a clean head-to-head learning-curve comparison (NeSy vs. CNN baseline) on identical MNIST-Addition
+   splits is a high-value, low-cost contribution.
+4. **LLM + solver integration.** LINC shows autoformalization+prover beats CoT, but coverage of
+   formalization failures and where the LLM mis-translates remains open.
+5. **Unified benchmarking.** The field lacks standardized protocols (cf. "How to Think About
+   Benchmarking Neurosymbolic AI?", #114 in the ranked list); inconsistent splits/metrics make
+   cross-paper comparison hard.
+
+---
+
+## 7. Recommendations for Our Experiment
+
+Given local resources and compute realism, the highest-value, most-defensible experiment:
+
+- **Primary task:** **MNIST-Addition** (pre-built in `datasets/mnist/mnist_addition/`). It is the
+  canonical NeSy benchmark, trains in minutes on CPU, and directly tests the hypothesis.
+- **Core comparison (the "improved capability"):**
+  1. **Neural-only baseline** — CNN over the two concatenated images → 19-way sum classifier.
+  2. **Neural-symbolic model** — shared CNN digit classifier (10-way) whose two predictions are
+     combined by the *fixed symbolic operation* `sum = d1 + d2`, trained end-to-end with only the
+     sum supervised (a differentiable marginalization over digit pairs, i.e., the DeepProbLog/Scallop
+     idea implemented compactly). Optionally also run DeepProbLog itself as a reference.
+- **Metrics:** sum-accuracy (primary), **learning curves / data efficiency** (vary train size:
+  e.g., 100 / 1k / 5k / 30k pairs), **latent digit-grounding accuracy** (using held-out digit labels
+  *only for evaluation*), and OOD generalization (train on the standard 0–9 single-digit pairs, test
+  on multi-digit addition if time permits).
+- **Expected result (from the literature):** the neural-symbolic model should match a fully
+  digit-supervised CNN and dramatically beat the neural-only baseline — especially in the low-data
+  regime — while also recovering correct digit groundings. This is exactly the "novel/improved
+  capability from integration" the hypothesis predicts.
+- **Reference implementations to borrow from:** `code/deepproblog/.../examples/MNIST/` (canonical
+  loaders + Prolog program), `code/NeurASP/examples/mnistAdd/`, `code/scallop/` (`scallopy`).
+- **Watch-outs:** keep an eye on reasoning shortcuts (report grounding accuracy, not just sum
+  accuracy); exact-inference methods may be slow if you scale digit count — start small.
+
+---
+
+### Appendix: Surveys for deeper context
+- Garcez & Lamb (2020) *Neurosymbolic AI: the 3rd wave* — manifesto & roadmap.
+- Marra et al. (2021) *From Statistical Relational to Neurosymbolic AI* — 7-dimension taxonomy.
+- Yu et al. (2021) *A survey on neural-symbolic learning systems* — challenges/methods/apps.
+- Wang & Yang (2022) *Towards Data-and Knowledge-Driven AI: A Survey on Neuro-Symbolic Computing*.
+- *Neurosymbolic RL and Planning: A Survey* (2023) — sequential decision-making.
+- Hamilton et al. (2022) — structured review of NeSy in NLP (what actually meets its promise).
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          PAPER REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+Generate a complete academic paper with the following structure:
+
+1. TITLE
+   - Clear, specific, informative
+   - Should convey main finding or contribution
+
+2. AUTHOR
+   - Use this exact author line in the \author{} block: Chenhao Tan and NeuriCo
+
+3. ABSTRACT (150-250 words)
+   - Problem statement
+   - Approach
+   - Key results
+   - Significance
+
+4. INTRODUCTION
+   - Research problem and motivation
+   - Gap in existing work
+   - Our contribution (be specific)
+   - Paper organization
+
+5. RELATED WORK
+   - Organized by theme/approach
+   - Position our work relative to prior work
+   - Cite papers from literature review
+
+6. METHODOLOGY
+   - Clear description of approach
+   - Experimental setup
+   - Datasets used
+   - Evaluation metrics
+   - Baselines
+
+7. RESULTS
+   - Present results with tables and figures
+   - Statistical analysis
+   - Comparison to baselines
+   - Ablation studies (if applicable)
+
+8. DISCUSSION
+   - Interpretation of results
+   - Limitations
+   - Broader implications
+
+9. CONCLUSION
+   - Summary of contributions
+   - Key findings
+   - Future work
+
+10. REFERENCES
+   - BibTeX format
+   - All cited papers
+
+════════════════════════════════════════════════════════════════════════════════
+                          OUTPUT FORMAT
+════════════════════════════════════════════════════════════════════════════════
+
+Create a MODULAR LaTeX project with the following directory structure:
+
+paper_draft/
+├── main.tex              # Main file that imports all sections
+├── references.bib        # BibTeX references
+├── sections/
+│   ├── abstract.tex      # Abstract content
+│   ├── introduction.tex  # Introduction section
+│   ├── related_work.tex  # Related work section
+│   ├── methodology.tex   # Methodology section
+│   ├── results.tex       # Results section
+│   ├── discussion.tex    # Discussion section
+│   └── conclusion.tex    # Conclusion section
+├── figures/              # Directory for any generated figures
+├── tables/               # Directory for complex standalone tables
+└── appendix/             # Directory for appendix sections (if needed)
+
+INSTRUCTIONS:
+1. First, create the directory structure above (mkdir -p paper_draft/sections paper_draft/figures paper_draft/tables paper_draft/appendix)
+2. Write main.tex using the EXACT preamble for NEURIPS:
+
+   \documentclass{article}
+   \usepackage[final]{neurips_2025}  % NEURIPS style (neurips_2025.sty is in paper_draft/)
+   \usepackage[hidelinks]{hyperref}  % REQUIRED: clickable links
+   \usepackage{booktabs}  % REQUIRED: professional tables
+   \usepackage{graphicx}
+   \usepackage{amsmath,amssymb}
+
+   % Import command files
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+   % Use this bibliography style:
+   \bibliographystyle{plainnat}
+
+   \author{Chenhao Tan and NeuriCo}
+
+   - Use \input{sections/...} to include each section
+   - Use \bibliography{references} for references
+3. Write each section file with COMPLETE content (no placeholders)
+4. Each section file should include its \section{} command
+5. Write references.bib with all citations in BibTeX format
+6. After writing all files, compile the paper:
+   cd paper_draft && pdflatex -interaction=nonstopmode main.tex && bibtex main && pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex
+
+This modular structure allows humans to easily:
+- Edit individual sections without navigating a large file
+- Track changes per section
+- Reuse sections across different paper versions
+
+════════════════════════════════════════════════════════════════════════════════
+                          QUALITY REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+- Academic tone throughout
+- All claims must be supported by data from the experiment report
+- Proper citations using \cite{} commands
+- Clear figures and tables with proper captions
+- NO placeholder text - every section must have real content
+- The paper MUST compile without errors
+- If compilation fails, debug and fix the LaTeX errors
+
+════════════════════════════════════════════════════════════════════════════════
+                          LAB WRITING STYLE
+════════════════════════════════════════════════════════════════════════════════
+
+Follow these lab-specific conventions to match our paper style:
+
+1. LANGUAGE STYLE:
+   - Use active voice: "We propose", "We examine", "We focus on"
+   - Be direct and confident: "Our main question is...", "We hypothesize that..."
+   - State things clearly and simply - prefer plain language over jargon
+   - Use bold questions as paragraph organizers: {\bf what is X?}
+   - Include specific quantitative claims: "8.97% over baseline"
+   - Avoid fancy wording: "utilize" → "use", "facilitate" → "help"
+
+2. INTRODUCTION STRUCTURE:
+   - Engaging hook (get to the point quickly)
+   - Problem importance
+   - Gap identification
+   - Your approach with method figure reference
+   - Quantitative preview of results
+   - Contribution bullets (3-4 items, action verbs)
+
+3. CONTRIBUTION LISTS:
+   \begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+       \item We propose...
+       \item We conduct...
+       \item We complement...
+   \end{itemize}
+
+4. MODULAR COMMANDS STRUCTURE:
+   Command templates are pre-copied to paper_draft/commands/:
+   - math.tex: Math notation macros
+   - general.tex: Formatting macros
+   - macros.tex: Project-specific term definitions (customize this for your paper)
+
+   In main.tex, include:
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+5. REFERENCE CONVENTIONS:
+   Use reference macros from math.tex:
+   - \figref{fig:name} for "figure 1" (lowercase, in-sentence)
+   - \Figref{fig:name} for "Figure 1" (capitalized, start of sentence)
+   - \secref{sec:name} for "section 2"
+
+6. TEXT FORMATTING:
+   - Use \para{Header text} for bold paragraph headers
+   - Define method/dataset names with \textsc and \xspace:
+     \newcommand{\methodname}{\textsc{MethodName}\xspace}
+
+7. TABLE FORMATTING:
+   - Use booktabs package (no vertical lines)
+   - Use \resizebox{\textwidth}{!}{...} for wide tables
+   - Use @{} to remove padding at table edges
+   - Use \cmidrule(lr){x-y} for sub-headers
+   - Use \textsc{} for dataset/method names in headers
+   - Bold best results with {\bf ...}
+
+8. FIGURE FORMATTING:
+   - Use 0.32\textwidth for 3-column subfigures
+   - Use 0.95\linewidth for full-width figures
+   - Use \input{figures/legend} for shared legends
+   - Write self-contained captions explaining key observations
+
+9. RESULTS PRESENTATION:
+   - Define \increase and \decrease for colored arrows (green up, red down)
+   - Bold best results in tables
+   - Report confidence intervals when available
+
+10. ALGORITHM STYLING:
+    - Use algpseudocode with [noend]
+    - Use \triangleright for comments
+
+11. HYPERLINKS (REQUIRED):
+    - Always use \usepackage[hidelinks]{hyperref} or with colored links
+    - All citations, section refs, figure refs, table refs must be clickable
+    - This is essential for reader navigation
+
+════════════════════════════════════════════════════════════════════════════════
+                          WORKFLOW: REVIEW AND REFLECT
+════════════════════════════════════════════════════════════════════════════════
+
+Before calling finish, you MUST complete these review steps:
+
+1. REVIEW RESOURCES (at the start):
+   - Read .claude/skills/paper-writer/SKILL.md for detailed guidance
+   - Study templates/paper_writing/lab_style_guide.md for style conventions
+   - Browse paper_examples/ for formatting and language patterns
+
+2. SELF-REFLECTION (before finishing):
+   After writing all sections, review your work against these criteria:
+
+   LANGUAGE CHECK:
+   - [ ] Is the writing clear and jargon-free?
+   - [ ] Are claims specific with quantitative support?
+   - [ ] Is active voice used throughout?
+
+   FORMATTING CHECK:
+   - [ ] Does main.tex include \input{commands/math}, \input{commands/general}, \input{commands/macros}?
+   - [ ] Is hyperref package included for clickable references?
+   - [ ] Do tables use booktabs (no vertical lines)?
+   - [ ] Are best results bolded in tables?
+   - [ ] Are figures/tables properly captioned?
+
+   STRUCTURE CHECK:
+   - [ ] Does introduction follow: hook → importance → gap → approach → preview → contributions?
+   - [ ] Are contribution bullets specific with action verbs?
+   - [ ] Does the paper compile without errors?
+
+3. FIX ISSUES:
+   - Address any issues found in the self-reflection
+   - Re-compile and verify the PDF looks correct
+
+Only after completing this review should you consider the paper finished.

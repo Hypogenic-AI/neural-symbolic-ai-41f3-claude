@@ -1,0 +1,116 @@
+[
+  [
+    "nscl_concept_learner_2019",
+    "The Neuro-Symbolic Concept Learner: Interpreting Scenes, Words, and Sentences From Natural Supervision",
+    "1904.12584v1",
+    2019
+  ],
+  [
+    "deepproblog_2018",
+    "Neural Probabilistic Logic Programming in DeepProbLog",
+    "1907.08194v2",
+    2019
+  ],
+  [
+    "dilp_explanatory_rules_2017",
+    "Explanatory machine learning for sequential human teaching",
+    "2205.10250v2",
+    2022
+  ],
+  [
+    "neurosymbolic_3rd_wave_2020",
+    "Reasoning in Neurosymbolic AI",
+    "2505.20313v1",
+    2025
+  ],
+  [
+    "nesy_computing_methodology_2019",
+    "Neural-Symbolic Computing: An Effective Methodology for Principled Integration of Machine Learning and Reasoning",
+    "1905.06088v1",
+    2019
+  ],
+  [
+    "logic_tensor_networks_2020",
+    "Logic Tensor Networks",
+    "2012.13635v4",
+    2020
+  ],
+  [
+    "neurasp_2020",
+    "NeurASP: Embracing Neural Networks into Answer Set Programming",
+    "2307.07700v1",
+    2023
+  ],
+  [
+    "starai_to_nesy_survey_2021",
+    "Deep Search for Joint Sources of Gravitational Waves and High-Energy Neutrinos with IceCube During the Third Observing Run of LIGO and Virgo",
+    "2601.07595v3",
+    2026
+  ],
+  [
+    "neurosymbolic_programming_2021",
+    "Neurosymbolic Association Rule Mining from Tabular Data",
+    "2504.19354v5",
+    2025
+  ],
+  [
+    "ns_vqa_2018",
+    "Neural-Symbolic VQA: Disentangling Reasoning from Vision and Language Understanding",
+    "1810.02338v2",
+    2018
+  ],
+  [
+    "neupsl_2022",
+    "NeuPSL: Neural Probabilistic Soft Logic",
+    "2205.14268v3",
+    2022
+  ],
+  [
+    "deep_symbolic_learning_2022",
+    "Deep Symbolic Learning: Discovering Symbols and Rules from Perceptions",
+    "2208.11561v2",
+    2022
+  ],
+  [
+    "softened_symbol_grounding_2024",
+    "Softened Symbol Grounding for Neuro-symbolic Systems",
+    "2403.00323v1",
+    2024
+  ],
+  [
+    "linc_2023",
+    "Observation of the rare $B^0_s\\to\u03bc^+\u03bc^-$ decay from the combined analysis of CMS and LHCb data",
+    "1411.4413v2",
+    2014
+  ],
+  [
+    "data_knowledge_driven_survey_2022",
+    "Towards Data-and Knowledge-Driven Artificial Intelligence: A Survey on Neuro-Symbolic Computing",
+    "2210.15889v5",
+    2022
+  ],
+  [
+    "pix2rule_2021",
+    "pix2rule: End-to-end Neuro-symbolic Rule Learning",
+    "2106.07487v3",
+    2021
+  ],
+  [
+    "nesy_rl_planning_survey_2023",
+    "GWTC-4.0: Methods for Identifying and Characterizing Gravitational-wave Transients",
+    "2508.18081v2",
+    2025
+  ],
+  [
+    "improving_rule_reasoning_llm_2025",
+    "Improving Rule-based Reasoning in LLMs using Neurosymbolic Representations",
+    "2502.01657v3",
+    2025
+  ],
+  [
+    "scalable_neural_prob_asp_2023",
+    "A System for Interactive Query Answering with Answer Set Programming",
+    "1312.6143v1",
+    2013
+  ]
+]

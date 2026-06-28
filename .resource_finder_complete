@@ -1,0 +1,10 @@
+Resource finding phase completed successfully.
+Timestamp: 2026-06-28T21:17:05+00:00
+Papers downloaded: 20
+Datasets downloaded: 2 (MNIST + MNIST-Addition benchmark; CLEVR/FOLIO/ProofWriter documented)
+Repositories cloned: 6 (DeepProbLog, NeurASP, Logic Tensor Networks, Scallop, Semantic-Loss, NS-VQA)
+
+Primary recommended experiment: MNIST-Addition (datasets/mnist/mnist_addition/)
+  neural-only CNN baseline vs. neural-symbolic (shared digit CNN + fixed symbolic sum),
+  evaluated on sum-accuracy, data-efficiency learning curves, and latent grounding accuracy.
+Deliverables: literature_review.md, resources.md, papers/README.md, datasets/README.md, code/README.md

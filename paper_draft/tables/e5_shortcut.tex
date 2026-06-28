@@ -1,0 +1,21 @@
+\begin{table}[t]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{}lcccl@{}}
+        \toprule
+        \textbf{Task (\nesy, $N{=}30$k)} & \textbf{Sum acc (mean${\pm}$CI)} & \textbf{Grounding (raw)}
+        & \textbf{Hungarian-aligned} & \textbf{Outcome over $5$ seeds} \\
+        \midrule
+        standard $a{+}b$ & $0.980 \pm 0.002$ & \textbf{0.990} & 0.990 & $0/5$ shortcut (grounds correctly) \\
+        modular \modten & $0.657 \pm 0.380$ & \textbf{0.020} & 0.471 & \textbf{$4/5$ shortcut $+$ $1/5$ collapse} \\
+        modular --- \oracle (digit-sup.) & 0.979 & \textbf{0.990} & 0.990 & $0/5$ (control: same task, grounds fine) \\
+        \bottomrule
+    \end{tabular}
+    }
+    \caption{\textbf{E5: flipping the operator switches shortcuts on.} Changing only $a{+}b\to\modten$
+    leaves task accuracy non-trivial but collapses raw grounding from $0.990$ to $0.020$; the large
+    aligned${-}$raw gap reveals a systematic relabeling. The digit-supervised oracle grounds at $0.990$
+    on the \emph{same} modular task (control), so the failure is caused by distant supervision under a
+    symmetric operator. Standard vs.\ modular grounding: Welch $p{=}9.6{\times}10^{-7}$, $d{=}31.5$.}
+    \label{tab:e5}
+\end{table}

@@ -1,0 +1,68 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\para{Integration is a real capability and data-efficiency win.} Wiring the symbolic operator into the
+model factorizes the task into digit recognition, so \nesy learns from far fewer examples and matches a
+fully supervised oracle (\secref{sec:e1}). Effect sizes are large at every size and overwhelming at
+$1{,}000$ pairs ($d{=}56$). We provide what the literature usually only asserts: a head-to-head
+learning-curve comparison with confidence intervals on identical splits.
+
+\para{Whether high accuracy implies correct symbols is a property of the operator, not of NeSy.} This
+is our central and most useful finding. Standard addition is shortcut-robust because its boundary sums
+identify the digits; modular addition is shortcut-prone because its rotational symmetry does not. The
+same network swings from $99.0\%$ grounding to $\approx0.1\%$ (among task-learning seeds) when we flip a
+single operator, while the oracle---which sees digit labels---grounds at $99\%$ on \emph{both} operators,
+the clean control (\secref{sec:e5}). The Hungarian-aligned metric is what makes the failure legible:
+aligned grounding far above the raw value exposes a \emph{systematic} relabeling rather than noise, and
+in the cleanest case the model lands on the exact algebraically predicted cyclic shift. The
+methodological implication is direct: report grounding, and report it permutation-aligned; sum accuracy
+alone is blind to this failure.
+
+\para{The cure matches the disease.} When the problem is non-identifiability, supplying a tiny amount
+of identifying information---$10$ labeled images, one per class---restores grounding to $97.7\%$ in every
+seed and also removes the training instability (\secref{sec:e3}). Unsupervised regularizers, which add no
+identifying information, mostly cannot. This reframes ``mitigation'' as ``supply the missing constraint''
+and shows it is cheap when needed and unnecessary when not.
+
+\para{Correct grounding is what compositional generalization stands on.} The single-digit-trained
+\nesy model solves multi-digit addition at ${\sim}94$--$96\%$ because, and only because, its digit
+classifier is correct; the neural baseline's structural $0\%$ is the foil (\secref{sec:e4}). We are
+careful here: the near-perfect correlation between grounding and OOD accuracy spans models that all
+ground well and has little spread, so we lean on the categorical contrast ($0\%$ vs.\ ${\sim}96\%$)
+rather than over-reading the correlation.
+
+\para{Surprises.} Two results were sharper than we expected. First, a single operator flip makes
+correct grounding vanish so reliably---raw grounding $\approx0.1\%$ in every seed that learns the
+task---and the model occasionally realizes the \emph{exact} $d\mapsto(d{+}5)$ permutation, together with
+training instability ($4/5$ shortcut, $1/5$ outright collapse). Second, the neural baseline shows high
+variance under modular addition at $30$k (four seeds at $0.96$--$0.97$, one stuck at $0.10$), hinting
+that the modular task is genuinely harder to represent without the additive factorization.
+
+\para{Error analysis.} \nesy's residual errors on standard addition fall on genuinely ambiguous digit
+images, consistent with its ${\sim}99\%$ grounding---they are \emph{perceptual}. Its ``errors'' under
+modular addition are not perceptual at all: they stem from a systematic global relabeling of the symbols
+(\figref{fig:confusion}), which is precisely why high task accuracy survives them.
+
+\subsection{Limitations}
+\label{sec:limitations}
+We are explicit about scope. (i) \emph{Single benchmark, single perceptual domain}: all results are on
+MNIST digits; the mechanism (task symmetry $\Rightarrow$ (non)identifiability of symbols) should
+transfer, but we did not test other modalities such as HWF or CLEVR. (ii) \emph{One symbolic
+relaxation}: our \nesy model is a faithful compact re-implementation of the DeepProbLog/Scallop exact
+marginalization, not a benchmark of those toolkits themselves. (iii) \emph{Low-spread correlation}: the
+H4 correlation is suggestive only; we rely on the categorical contrast. (iv) \emph{GPU non-determinism
+and modular instability}: atomic CUDA operations make runs not bit-identical even with fixed seeds, so
+the specific permutation a modular run lands on---and whether a seed shortcuts or collapses---varies
+across re-runs. The robust, re-run-invariant phenomenon is that under the modular operator correct
+grounding never emerges (raw grounding $\approx0.1\%$ whenever the task is learned; the oracle always
+grounds at $99\%$). Because modular \nesy is unstable, aggregate statistics over seeds, not single runs,
+are the unit of inference, and \figref{fig:confusion} reads the saved grid rather than fresh retrains.
+Standard-addition results reproduce across re-runs to within ${\pm}0.01$. (v) Modular addition is a
+\emph{deliberately constructed} shortcut-inducer chosen for its exact, analyzable symmetry, not a
+naturally occurring task.
+
+\para{Broader implications.} For anyone deploying a NeSy system, the practical message is that task
+accuracy is a necessary but not sufficient signal of understanding. Latent symbols can be confidently
+and systematically wrong while every reported number looks healthy. Auditing grounding---and analyzing
+the symbolic operator for symmetries that fail to identify the symbols---should be standard practice,
+and where shortcuts are possible, a handful of labeled symbols is a cheap and reliable safeguard.

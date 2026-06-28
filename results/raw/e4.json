@@ -1,0 +1,137 @@
+[
+  {
+    "kind": "nesy",
+    "seed": 0,
+    "device": "cuda:3",
+    "single_sum_acc": 0.9826,
+    "single_grounding_acc": 0.9913,
+    "ood_2digit_acc": 0.9632,
+    "ood_3digit_acc": 0.9476
+  },
+  {
+    "kind": "nesy",
+    "seed": 4,
+    "device": "cuda:1",
+    "single_sum_acc": 0.9778,
+    "single_grounding_acc": 0.9889,
+    "ood_2digit_acc": 0.9538,
+    "ood_3digit_acc": 0.9324
+  },
+  {
+    "kind": "oracle",
+    "seed": 0,
+    "device": "cuda:3",
+    "single_sum_acc": 0.9832,
+    "single_grounding_acc": 0.9916,
+    "ood_2digit_acc": 0.966,
+    "ood_3digit_acc": 0.9492
+  },
+  {
+    "kind": "nesy",
+    "seed": 2,
+    "device": "cuda:1",
+    "single_sum_acc": 0.978,
+    "single_grounding_acc": 0.989,
+    "ood_2digit_acc": 0.9536,
+    "ood_3digit_acc": 0.933
+  },
+  {
+    "kind": "nesy",
+    "seed": 3,
+    "device": "cuda:0",
+    "single_sum_acc": 0.9756,
+    "single_grounding_acc": 0.9877,
+    "ood_2digit_acc": 0.9466,
+    "ood_3digit_acc": 0.9254
+  },
+  {
+    "kind": "nesy",
+    "seed": 1,
+    "device": "cuda:0",
+    "single_sum_acc": 0.9828,
+    "single_grounding_acc": 0.9914,
+    "ood_2digit_acc": 0.9654,
+    "ood_3digit_acc": 0.9482
+  },
+  {
+    "kind": "oracle",
+    "seed": 2,
+    "device": "cuda:1",
+    "single_sum_acc": 0.9812,
+    "single_grounding_acc": 0.9905,
+    "ood_2digit_acc": 0.9618,
+    "ood_3digit_acc": 0.9442
+  },
+  {
+    "kind": "oracle",
+    "seed": 1,
+    "device": "cuda:3",
+    "single_sum_acc": 0.9822,
+    "single_grounding_acc": 0.9911,
+    "ood_2digit_acc": 0.9626,
+    "ood_3digit_acc": 0.948
+  },
+  {
+    "kind": "oracle",
+    "seed": 4,
+    "device": "cuda:1",
+    "single_sum_acc": 0.9796,
+    "single_grounding_acc": 0.9898,
+    "ood_2digit_acc": 0.957,
+    "ood_3digit_acc": 0.9352
+  },
+  {
+    "kind": "oracle",
+    "seed": 3,
+    "device": "cuda:3",
+    "single_sum_acc": 0.9768,
+    "single_grounding_acc": 0.9884,
+    "ood_2digit_acc": 0.9514,
+    "ood_3digit_acc": 0.9254
+  },
+  {
+    "kind": "neural",
+    "seed": 0,
+    "device": "cuda:0",
+    "single_sum_acc": 0.9662,
+    "single_grounding_acc": null,
+    "ood_2digit_acc": 0.0,
+    "ood_3digit_acc": 0.0
+  },
+  {
+    "kind": "neural",
+    "seed": 1,
+    "device": "cuda:0",
+    "single_sum_acc": 0.9692,
+    "single_grounding_acc": null,
+    "ood_2digit_acc": 0.0,
+    "ood_3digit_acc": 0.0
+  },
+  {
+    "kind": "neural",
+    "seed": 3,
+    "device": "cuda:3",
+    "single_sum_acc": 0.9648,
+    "single_grounding_acc": null,
+    "ood_2digit_acc": 0.0,
+    "ood_3digit_acc": 0.0
+  },
+  {
+    "kind": "neural",
+    "seed": 2,
+    "device": "cuda:1",
+    "single_sum_acc": 0.9684,
+    "single_grounding_acc": null,
+    "ood_2digit_acc": 0.0,
+    "ood_3digit_acc": 0.0
+  },
+  {
+    "kind": "neural",
+    "seed": 4,
+    "device": "cuda:1",
+    "single_sum_acc": 0.9686,
+    "single_grounding_acc": null,
+    "ood_2digit_acc": 0.0,
+    "ood_3digit_acc": 0.0
+  }
+]

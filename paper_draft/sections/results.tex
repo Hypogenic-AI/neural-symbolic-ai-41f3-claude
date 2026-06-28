@@ -1,0 +1,138 @@
+\section{Results}
+\label{sec:results}
+
+We organize results around the four hypotheses: data efficiency (E1), grounding and its silent failure
+under a flipped operator (E2/E5), mitigations (E3/E5), and compositional generalization (E4).
+
+\subsection{E1 --- Data efficiency: integration is a large, significant win at every size}
+\label{sec:e1}
+
+\Tabref{tab:e1} and \figref{fig:data_efficiency}(a) compare the three models across six training
+sizes on standard addition. The \nesy model beats the \neural baseline at \emph{every} size (all
+Holm-adjusted $p{<}0.01$), tracks the oracle closely, and the gap is largest in the low-data regime.
+The single most striking point is at $1{,}000$ pairs, where \nesy reaches $85.4\%$ versus the
+baseline's $22.0\%$---a Cohen's $d$ of $56$ ($p{=}2.9{\times}10^{-13}$). The neural baseline needs
+roughly $5{,}000$ pairs to reach what \nesy achieves with about $1{,}000$. As data grows the gap
+shrinks but never closes (e.g.\ $+1.0$ point at $30{,}000$, still $p{<}0.01$), exactly the pattern the
+data-efficiency claim predicts.
+
+\input{tables/e1_data_efficiency}
+
+\subsection{E2 --- Grounding emerges without any digit labels (standard addition)}
+\label{sec:e2}
+
+\figref{fig:data_efficiency}(b) shows that \nesy's latent digit-grounding rises from $28.3\%$
+(100 pairs) to $99.0\%$ ($30$k pairs), essentially matching the digit-supervised oracle---even though
+\nesy never saw a digit label. The Hungarian-aligned grounding \emph{equals} the raw grounding at every
+size ($0/5$ shortcut flags throughout), so standard \mnistadd is \newterm{shortcut-robust}: its boundary
+sums uniquely pin the symbols. The visible sum-vs-grounding gap (e.g.\ $85.4\%$ sum vs.\ $92.4\%$
+grounding at $1$k) is just the ``both digits must be right'' effect (sum~$\approx$~grounding$^2$), not a
+shortcut.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/fig1_data_efficiency.png}
+    \caption{\figleft Data efficiency on standard addition. \nesy (blue) dramatically beats the
+    \neural baseline (red), most sharply in the low-data regime, and tracks the digit-supervised oracle
+    (green); the baseline needs ${\sim}5{\times}$ more data to catch up. \figright Latent
+    digit-grounding accuracy rises to $99\%$ for \nesy with \emph{no} digit labels, matching the oracle
+    and far above the $0.10$ chance line. Error bars are $95\%$ confidence intervals over $5$ seeds.}
+    \label{fig:data_efficiency}
+\end{figure}
+
+\subsection{E5 --- Flip the operator and grounding collapses}
+\label{sec:e5}
+
+Changing \emph{only} the symbolic operator to \modten produces a sharp dissociation between task
+accuracy and grounding (\Tabref{tab:e5}, \twofigref{fig:shortcut}{fig:confusion}). Standard addition
+grounds at $99.0\%$; modular addition grounds at $\approx2\%$ raw. Among the four seeds that actually
+learn the modular task (sum${>}0.3$), raw grounding is just $0.09\%$ (max $0.16\%$): the network reads
+the digits systematically wrong via a global relabeling that leaves \modten invariant. The
+permutation-aligned metric makes the failure legible---aligned grounding is $0.53$--$0.60$ on shortcut
+seeds and reaches $0.99$ on the cleanest realization, where the model lands on the \emph{exact}
+predicted cyclic shift $d\mapsto(d{+}5)\bmod 10$ (\figref{fig:confusion}). The fifth seed collapses to
+predicting a single class. Crucially, the digit-supervised \emph{oracle grounds at $99.0\%$ on the
+identical modular task}, so the collapse is caused by distant supervision under a symmetric operator,
+not by the task. The standard-vs-modular grounding contrast is overwhelming ($0.990$ vs.\ $0.020$,
+Welch $p{=}9.6{\times}10^{-7}$, $d{=}31.5$). This shortcut is visible \emph{only} because we measured
+grounding; task accuracy alone is blind to it.
+
+\input{tables/e5_shortcut}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/fig2_shortcut.png}
+    \caption{Flipping one operator switches reasoning shortcuts on. \figleft Task (sum) accuracy:
+    standard addition (blue) is high and stable, while modular addition (orange) is solved
+    \emph{unstably}---the large error bars reflect $4/5$ seeds finding a shortcut and $1/5$ collapsing.
+    \figright Latent grounding: standard addition reaches $99\%$, but modular addition sits near the
+    $0.10$ chance line---high task accuracy with near-zero grounding. Bars are means over $5$ seeds;
+    error bars are $95\%$ confidence intervals.}
+    \label{fig:shortcut}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.98\linewidth]{figures/fig3_confusion.png}
+    \caption{Per-seed grounding confusion matrices (rows: true digit, columns: predicted symbol) for
+    modular addition at $N{=}30$k, read from the saved E5 grid. Seeds 0--3 place nearly all mass
+    \emph{off} the diagonal: a clean, systematic relabeling (a reasoning shortcut) rather than random
+    noise---seed 1 is close to the exact $d\mapsto(d{+}5)$ cyclic shift. Seed 4 collapses to a single
+    predicted class (failed to fit). Correct grounding never appears, whereas standard addition grounds
+    on the diagonal at $99\%$.}
+    \label{fig:confusion}
+\end{figure}
+
+\subsection{E3/E5 --- Mitigations: needed and effective exactly when a shortcut exists}
+\label{sec:e3}
+
+\Tabref{tab:e3} and \figref{fig:mitigations} report grounding accuracy under each intervention. We
+evaluate standard addition at $N{=}1$k (where its grounding gap is largest) and modular addition at
+$N{=}5$k (where the shortcut is firmly established); each column is a within-task before/after
+comparison, so the differing $N$ does not affect the conclusion. On standard addition, where there is no
+shortcut to fix, mitigations do essentially nothing. On modular addition, \emph{just $10$ labeled
+images} (one per class) break the symmetry and restore grounding from $\approx0.1\%$ to $97.7\%$ in
+\emph{every} seed (per-seed $0.973$--$0.981$; Welch $p{=}1.6{\times}10^{-3}$, $d{=}4.8$), while also
+stabilizing training (sum accuracy $\to0.954$, no collapses). Adding more labels ($50$, $200$) does not
+help further. Unsupervised regularizers are unreliable: a marginal-uniformity prior recovers only
+partial grounding ($0.390$, high variance) and an entropy penalty does not help at all ($0.128$). The
+cure matches the disease---supply the missing identifying constraint---and it is extremely cheap.
+
+\input{tables/e3_mitigations}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/fig5_mitigations.png}
+    \caption{Mitigations are needed (and effective) only when a shortcut exists. On standard addition
+    (blue, no shortcut) all interventions leave grounding essentially unchanged. On modular addition
+    (orange, shortcut present) just $10$ labeled images (\texttt{aux\_k1}) restore grounding to
+    $97.7\%$; more labels add nothing, the uniform prior helps only partially (high variance), and the
+    entropy penalty does not help. Dashed line is the $0.10$ chance level.}
+    \label{fig:mitigations}
+\end{figure}
+
+\subsection{E4 --- Compositional generalization: the payoff of correct grounding}
+\label{sec:e4}
+
+Finally, \Tabref{tab:e4} and \figref{fig:ood} show the capability that correct grounding unlocks.
+Trained on \emph{single-digit} sums only, the \nesy model solves $2$- and $3$-digit number addition it
+never saw---at $95.7\%$ and $93.7\%$---by composing its digit classifier with a symbolic place-value
+sum, essentially matching the oracle ($96.0\%$/$94.0\%$). The \neural baseline scores exactly $0\%$: it
+cannot even emit sums in this range, a structural rather than a tuning failure. Across the grounded
+models, single-digit grounding and OOD accuracy correlate almost perfectly (Pearson $r{=}0.993$,
+$p{=}1{\times}10^{-8}$), but because that correlation spans models that all ground well, we treat the
+\emph{categorical} contrast ($0\%$ for the ungrounded baseline vs.\ ${\sim}96\%$ for grounded models) as
+the stronger evidence. This is the most direct demonstration that integration buys a genuinely new
+capability, not just a higher benchmark number---and that the capability rests on correct grounding.
+
+\input{tables/e4_compositional}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/fig4_compositional_ood.png}
+    \caption{Zero-shot compositional generalization. Trained only on single-digit sums, \nesy and the
+    oracle solve $2$- and $3$-digit number addition at ${\sim}94$--$96\%$ by composing the digit
+    classifier with a symbolic place-value sum. The \neural baseline scores $0\%$---it structurally
+    cannot represent outputs in this range. Error bars are $95\%$ confidence intervals over $5$ seeds.}
+    \label{fig:ood}
+\end{figure}

@@ -1,0 +1,5 @@
+# Cloned third-party repositories are large; do not commit.
+# See code/README.md for clone instructions.
+*/
+!README.md
+!.gitignore

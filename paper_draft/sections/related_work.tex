@@ -1,0 +1,47 @@
+\section{Related Work}
+\label{sec:related}
+
+\para{Probabilistic logic with neural predicates.} A major NeSy family compiles logic into a
+differentiable circuit and lets a neural network supply the probabilities of atoms. DeepProbLog
+\citep{manhaeve2018} adds a neural predicate to ProbLog, compiles inference to arithmetic circuits, and
+introduces \mnistadd as its flagship benchmark; NeurASP \citep{yang2020} couples network softmax
+outputs to an answer-set program; and Scallop \citep{li2023scallop} implements differentiable Datalog
+with provenance semirings and a tunable top-$k$ approximation for scale. Our \nesy model is a compact
+re-implementation of the shared core of these systems: per-image digit distributions combined by an
+\emph{exact} differentiable marginalization over digit pairs. We do not benchmark the toolkits
+themselves; we use their common mechanism as a clean experimental substrate and add the grounding and
+shortcut measurements they usually omit.
+
+\para{Differentiable logic as loss or representation.} A second family treats knowledge as a soft
+constraint on network outputs rather than as architecture. Logic Tensor Networks \citep{badreddine2020}
+define a many-valued differentiable first-order logic whose formulas become satisfiability objectives,
+and the semantic loss \citep{xu2017} measures the distance of network outputs from satisfying a logical
+constraint. These methods inject knowledge without changing the architecture; we instead bake the
+symbolic operator directly into the forward computation, which is precisely what makes the latent
+digit symbols inspectable and the grounding question well posed.
+
+\para{The symbol grounding problem and reasoning shortcuts.} The closest work to ours studies how
+distant supervision under-constrains the perception-to-symbol map. Softened Symbol Grounding
+\citep{li2024softened} and Deep Symbolic Learning \citep{deepsymbolic2022} observe that a NeSy system
+can reach high task accuracy while learning a wrong, self-consistent symbol map, and propose training
+schemes to mitigate it. These works raise the shortcut problem largely qualitatively. We complement
+them with a controlled, multi-seed \emph{measurement}: we tie shortcut emergence to a concrete,
+analyzable property of the symbolic operator (its symmetry), provide a permutation-aware detector,
+quantify the resulting collapse and its training instability, and rank cheap mitigations against one
+another.
+
+\para{Compositional and out-of-distribution generalization.} Modular neuro-symbolic systems such as
+NS-VQA \citep{yi2018} and the Neuro-Symbolic Concept Learner \citep{mao2019} achieve strong
+compositional generalization by pairing a neural perception front-end with a symbolic executor, and
+multi-digit/multi-addend addition is a standard stress test for inference scaling
+\citep{manhaeve2018,li2023scallop}. We use multi-digit addition differently: as a \emph{diagnostic of
+grounding}. Because our single-digit classifier can be composed with a symbolic place-value sum, a
+model with correct grounding should generalize zero-shot while one with a shortcut should not, making
+OOD accuracy a direct, externally checkable test of whether the latent symbols are right.
+
+\para{Surveys and positioning.} Broad treatments of the field
+\citep{garcez2020,marra2021} catalog the design space and repeatedly flag two gaps: data efficiency is
+asserted more than measured, and grounding is under-reported. Our study is deliberately narrow---one
+benchmark, one perceptual domain---but addresses exactly these gaps with statistics, and ties data
+efficiency, grounding, mitigation, and compositional generalization together through a single operator
+manipulation.

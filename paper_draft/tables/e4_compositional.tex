@@ -1,0 +1,18 @@
+\begin{table}[t]
+    \centering
+    \begin{tabular}{@{}lccc@{}}
+        \toprule
+        \textbf{Model} & \textbf{2-digit (OOD)} & \textbf{3-digit (OOD)} & \textbf{single-digit grounding} \\
+        \midrule
+        \neural          & 0.000 & 0.000 & 0.000 (n/a) \\
+        \nesy            & \textbf{0.957} & \textbf{0.937} & 0.990 \\
+        \oracle          & 0.960 & 0.940 & 0.990 \\
+        \bottomrule
+    \end{tabular}
+    \caption{\textbf{E4: compositional generalization.} Models trained only on single-digit sums,
+    evaluated zero-shot on multi-digit number addition via symbolic place-value composition. \nesy nearly
+    matches the oracle and generalizes to a structure it never saw, \emph{because} its grounding is
+    correct; the \neural baseline cannot represent outputs in this range (structural $0\%$). Best of the
+    two learnable contrasts (\neural, \nesy) in \textbf{bold}.}
+    \label{tab:e4}
+\end{table}

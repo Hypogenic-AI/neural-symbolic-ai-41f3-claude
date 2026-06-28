@@ -1,0 +1,23 @@
+\begin{table}[t]
+    \centering
+    \begin{tabular}{@{}lcc@{}}
+        \toprule
+        \textbf{Intervention} & \textbf{Standard add @$N{=}1$k} & \textbf{Modular add @$N{=}5$k} \\
+         & \textbf{(no shortcut)} & \textbf{(shortcut present)} \\
+        \midrule
+        baseline (none)                              & 0.924 & 0.116 \footnotesize{(4/5 $\approx$0; 1 seed 0.57)} \\
+        $+$ aux digit labels, 1/class (10 total)     & 0.925 & \textbf{0.977} \\
+        $+$ aux 5/class (50 total)                   & 0.926 & 0.977 \\
+        $+$ aux 20/class (200 total)                 & 0.931 & 0.979 \\
+        $+$ marginal-uniformity prior                & 0.924 & 0.390 \\
+        $+$ entropy regularization                   & 0.925 & 0.128 \\
+        \bottomrule
+    \end{tabular}
+    \caption{\textbf{E3: mitigations restore grounding only when a shortcut exists.} Digit-grounding
+    accuracy under each intervention (standard addition evaluated at $N{=}1$k, modular at $N{=}5$k; each
+    column is a within-task before/after). On standard addition there is nothing to fix. On modular
+    addition, just $10$ labeled images break the symmetry and restore grounding to $0.977$ in every seed
+    (Welch $p{=}1.6{\times}10^{-3}$, $d{=}4.8$), whereas unsupervised regularizers help only partially
+    (uniform prior) or not at all (entropy). Best modular result in \textbf{bold}.}
+    \label{tab:e3}
+\end{table}
